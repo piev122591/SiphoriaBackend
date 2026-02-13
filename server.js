@@ -37,6 +37,9 @@ app.locals.pool = pool;
 const productsRoutes = require('./routes/products');
 app.use('/products', productsRoutes);
 
+const categoryRoutes = require('./routes/category');
+app.use('/category', categoryRoutes);
+
 /* ===============================
    📘 Swagger Setup
 ================================ */
