@@ -3,8 +3,10 @@ const express = require('express');
 const { Pool } = require('pg');
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsdoc = require('swagger-jsdoc');
+const cors = require('cors');
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
 /* ===============================
