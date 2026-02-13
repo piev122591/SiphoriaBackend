@@ -49,13 +49,11 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: process.env.NODE_ENV === "production"
-          ? "https://your-railway-app.up.railway.app"
-          : "http://localhost:3000",
+        url: "/",   // ✅ use current host automatically
       },
     ],
   },
-  apis: ["./routes/*.js"], // 🔥 Important: scan routes folder
+  apis: ["./routes/*.js"],
 };
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
