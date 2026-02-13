@@ -1,15 +1,20 @@
 require('dotenv').config();
 const express = require('express');
 const { Pool } = require('pg');
+const swaggerUi = require('swagger-ui-express');
+const swaggerJsdoc = require('swagger-jsdoc');
 
 const app = express();
 app.use(express.json());
 
-// 🔥 DEBUG: Check if Railway sees DATABASE_URL
+/* ===============================
+   🔥 DEBUG Railway ENV
+================================ */
 console.log("DATABASE_URL exists:", !!process.env.DATABASE_URL);
-console.log("DATABASE_URL value:", process.env.DATABASE_URL);
 
-// Railway PostgreSQL connection
+/* ===============================
+   🐘 PostgreSQL Connection
+================================ */
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
@@ -17,40 +22,58 @@ const pool = new Pool({
   },
 });
 
-// Optional: Test connection on startup
 pool.connect()
   .then(() => console.log("✅ Connected to PostgreSQL successfully"))
   .catch(err => console.error("❌ Initial DB Connection Error:", err));
 
-// Test route
-app.get('/getProducts', async (req, res) => {
-  try {
-    const result = await pool.query(
-      'SELECT * FROM products AS a JOIN product_price AS b ON a.id = b.productId'
-    );
-    res.json(result.rows);
-  } catch (err) {
-    console.error("🔥 QUERY ERROR:", err);
-    res.status(500).json({ 
-      error: err.message,
-      detail: err.detail || null,
-      code: err.code || null
-    });
-  }
-});
+/* 🔥 Make pool accessible in routes */
+app.locals.pool = pool;
 
-// Simple DB test route
+/* ===============================
+   📦 ROUTES
+================================ */
+const productsRoutes = require('./routes/products');
+app.use('/products', productsRoutes);
+
+/* ===============================
+   📘 Swagger Setup
+================================ */
+const swaggerOptions = {
+  definition: {
+    openapi: "3.0.0",
+    info: {
+      title: "Siphoria",
+      version: "1.0.0",
+    },
+    servers: [
+      {
+        url: process.env.NODE_ENV === "production"
+          ? "https://your-railway-app.up.railway.app"
+          : "http://localhost:3000",
+      },
+    ],
+  },
+  apis: ["./routes/*.js"], // 🔥 Important: scan routes folder
+};
+
+const swaggerSpec = swaggerJsdoc(swaggerOptions);
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+/* ===============================
+   🧪 DB TEST ROUTE
+================================ */
 app.get('/test', async (req, res) => {
   try {
     const result = await pool.query('SELECT 1');
     res.json(result.rows);
   } catch (err) {
-    console.error("🔥 TEST ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ✅ IMPORTANT FOR RAILWAY
+/* ===============================
+   🚀 START SERVER
+================================ */
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
