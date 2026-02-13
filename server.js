@@ -5,7 +5,7 @@ const { Pool } = require('pg');
 const app = express();
 app.use(express.json());
 
-// Railway connection
+// Railway PostgreSQL connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
@@ -16,7 +16,9 @@ const pool = new Pool({
 // Test route
 app.get('/getProducts', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM products AS a JOIN product_price AS b ON a.id = b.productId');
+    const result = await pool.query(
+      'SELECT * FROM products AS a JOIN product_price AS b ON a.id = b.productId'
+    );
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -24,9 +26,9 @@ app.get('/getProducts', async (req, res) => {
   }
 });
 
-app.listen(3000, () => {
-  console.log('Server running at http://localhost:3000');
-});
+// ✅ IMPORTANT FOR RAILWAY
+const PORT = process.env.PORT || 3000;
 
-//Run Node Server
-//node server.js 
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
