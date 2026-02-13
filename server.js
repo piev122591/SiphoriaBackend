@@ -5,6 +5,10 @@ const { Pool } = require('pg');
 const app = express();
 app.use(express.json());
 
+// 🔥 DEBUG: Check if Railway sees DATABASE_URL
+console.log("DATABASE_URL exists:", !!process.env.DATABASE_URL);
+console.log("DATABASE_URL value:", process.env.DATABASE_URL);
+
 // Railway PostgreSQL connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -12,6 +16,11 @@ const pool = new Pool({
     rejectUnauthorized: false,
   },
 });
+
+// Optional: Test connection on startup
+pool.connect()
+  .then(() => console.log("✅ Connected to PostgreSQL successfully"))
+  .catch(err => console.error("❌ Initial DB Connection Error:", err));
 
 // Test route
 app.get('/getProducts', async (req, res) => {
@@ -21,8 +30,23 @@ app.get('/getProducts', async (req, res) => {
     );
     res.json(result.rows);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Database connection failed' });
+    console.error("🔥 QUERY ERROR:", err);
+    res.status(500).json({ 
+      error: err.message,
+      detail: err.detail || null,
+      code: err.code || null
+    });
+  }
+});
+
+// Simple DB test route
+app.get('/test', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT 1');
+    res.json(result.rows);
+  } catch (err) {
+    console.error("🔥 TEST ERROR:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -30,5 +54,5 @@ app.get('/getProducts', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
