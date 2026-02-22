@@ -54,10 +54,10 @@ router.post('/', async (req, res) => {
 
 /**
  * @swagger
- * /product Price:
+ * /product-price:
  *   get:
  *     tags:
- *       - Product Price
+ *       - Products
  *     summary: Get all Product Price
  *     responses:
  *       200:
@@ -78,10 +78,10 @@ router.get('/', async (req, res) => {
 
 /**
  * @swagger
- * /products:
+ * /product-price:
  *   post:
  *     tags:
- *       - Product Price
+ *       - Products
  *     summary: Create new product price
  */
 router.post('/', async (req, res) => {
@@ -106,10 +106,10 @@ router.post('/', async (req, res) => {
 
 /**
  * @swagger
- * /product Price:
+ * /product-size:
  *   get:
  *     tags:
- *       - Size
+ *       - Products
  *     summary: Get all Size
  *     responses:
  *       200:
@@ -130,10 +130,10 @@ router.get('/', async (req, res) => {
 
 /**
  * @swagger
- * /products:
+ * /product-size:
  *   post:
  *     tags:
- *       - Product Size
+ *       - Products
  *     summary: Create new size
  */
 router.post('/', async (req, res) => {
