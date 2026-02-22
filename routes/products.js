@@ -57,11 +57,11 @@ router.post('/', async (req, res) => {
  * /product Price:
  *   get:
  *     tags:
- *       - Products
+ *       - Product Price
  *     summary: Get all Product Price
  *     responses:
  *       200:
- *         description: List of products
+ *         description: List of product Price
  */
 router.get('/', async (req, res) => {
   try {
@@ -90,7 +90,7 @@ router.post('/', async (req, res) => {
     const { name, price } = req.body;
 
     const result = await pool.query(
-      'INSERT INTO product_price (name, price) VALUES ($1, $2) RETURNING *',
+      'INSERT INTO size (name, price) VALUES ($1, $2) RETURNING *',
       [name, price]
     );
 
@@ -98,9 +98,62 @@ router.post('/', async (req, res) => {
 
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Failed to create product' });
+    res.status(500).json({ error: 'Failed to create product size' });
   }
 });
+
+
+
+/**
+ * @swagger
+ * /product Price:
+ *   get:
+ *     tags:
+ *       - Size
+ *     summary: Get all Size
+ *     responses:
+ *       200:
+ *         description: List of size
+ */
+router.get('/', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+
+    const result = await pool.query('SELECT * FROM size');
+    res.json(result.rows);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch product size' });
+  }
+});
+
+/**
+ * @swagger
+ * /products:
+ *   post:
+ *     tags:
+ *       - Product Size
+ *     summary: Create new size
+ */
+router.post('/', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const { name, price } = req.body;
+
+    const result = await pool.query(
+      'INSERT INTO size (name, price) VALUES ($1, $2) RETURNING *',
+      [name, price]
+    );
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create size' });
+  }
+});
+
 
 
 module.exports = router;

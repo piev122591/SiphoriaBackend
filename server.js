@@ -40,6 +40,13 @@ app.use('/products', productsRoutes);
 const categoryRoutes = require('./routes/category');
 app.use('/category', categoryRoutes);
 
+const ordersRoutes = require('./routes/orders');
+app.use('/orders', ordersRoutes);
+
+const usersRoutes = require('./routes/users');
+app.use('/users', usersRoutes);
+
+
 /* ===============================
    📘 Swagger Setup
 ================================ */
