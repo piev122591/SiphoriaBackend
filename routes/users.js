@@ -58,6 +58,24 @@ router.post('/', async (req, res) => {
  *     tags:
  *       - Users
  *     summary: Login using username and password
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 example: admin
+ *               password:
+ *                 type: string
+ *                 example: 123456
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *       400:
+ *         description: Invalid username or password
  */
 router.post('/login', async (req, res) => {
   try {
