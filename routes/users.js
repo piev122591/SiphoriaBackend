@@ -51,4 +51,37 @@ router.post('/', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /users/login:
+ *   post:
+ *     tags:
+ *       - Users
+ *     summary: Login using username and password
+ */
+router.post('/login', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const { username, password } = req.body;
+
+    const result = await pool.query(
+      'SELECT id, username FROM users WHERE username = $1 AND password = $2',
+      [username, password]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'Invalid username or password' });
+    }
+
+    res.json({
+      message: 'Login successful',
+      user: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
+
 module.exports = router;
