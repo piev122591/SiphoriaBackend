@@ -12,19 +12,30 @@ const router = express.Router();
  *       200:
  *         description: List of products
  */
-router.get('/', async (req, res) => {
-  try {
-    const pool = req.app.locals.pool;
+    router.get('/', async (req, res) => {
+      try {
+        const pool = req.app.locals.pool;
 
-    const result = await pool.query('SELECT * FROM products');
-    res.json(result.rows);
+        const result = await pool.query(`SELECT p.id,
+          p.name,
+          p.categoryid,
+          pd.image_url,
+          pd.price,
+          a.name AS "categoryName",
+          s.name as "size"
+          FROM products p 
+          JOIN product_details pd ON pd.productid = p.id 
+          JOIN category a ON p.categoryid = a.id
+          JOIN size s ON pd.sizeid = s.id 
+          `);
 
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch products' });
-  }
-});
+        res.json(result.rows);
 
+      } catch (error) {
+        console.error("Products API error:", error);
+        res.status(500).json({ error: 'Failed to fetch products' });
+      }
+    });
 /**
  * @swagger
  * /products:
