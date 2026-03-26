@@ -16,7 +16,20 @@ const router = express.Router();
       try {
         const pool = req.app.locals.pool;
 
-        const result = await pool.query(`Select * from products`);
+        const result = await pool.query(`SELECT 
+              p.id,
+              p.name,
+              p.categoryid,
+              MAX(pd.image_url) AS image_url,
+              MAX(pd.price) AS price,
+              a.name AS "categoryName",
+              STRING_AGG(s.name, ', ') AS sizes
+              FROM products p 
+              JOIN product_details pd ON pd.productid = p.id 
+              JOIN category a ON p.categoryid = a.id
+              JOIN size s ON pd.sizeid = s.id 
+              GROUP BY p.id, p.name, p.categoryid, a.name`
+            );
 
         res.json(result.rows);
 

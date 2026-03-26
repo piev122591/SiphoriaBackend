@@ -31,6 +31,18 @@ pool.connect()
 /* 🔥 Make pool accessible in routes */
 app.locals.pool = pool;
 
+app.set('etag', false);
+
+app.use((req, res, next) => {
+  res.set({
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+    'Surrogate-Control': 'no-store'
+  });
+  next();
+});
+
 /* ===============================
    📦 ROUTES
 ================================ */
@@ -62,7 +74,7 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: "/",   // ✅ use current host automatically
+       url: "/?t=" + Date.now()
       },
     ],
   },
