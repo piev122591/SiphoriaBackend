@@ -14,7 +14,8 @@ router.get('/', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
 
-    const result = await pool.query(`SELECT p.id,
+    const result = await pool.query(`SELECT pd.id,
+          p.id As "productId",
           p.name,
           p.categoryid,
           pd.image_url,
