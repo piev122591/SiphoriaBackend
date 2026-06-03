@@ -164,9 +164,9 @@ router.get('/by-date', async (req, res) => {
  *               payment_type_id:
  *                 type: integer
  *                 example: 1
- *               status:
- *                 type: string
- *                 example: pending
+ *               status_id:
+ *                 type: integer
+ *                 example: 1
  *               remarks:
  *                 type: string
  *                 example: Extra sugar please
@@ -198,7 +198,7 @@ router.get('/by-date', async (req, res) => {
  */
 router.post('/', async (req, res) => {
   const pool = req.app.locals.pool;
-  const { name, payment_type_id, status, remarks, order_details } = req.body;
+  const { name, payment_type_id, status_id, remarks, order_details } = req.body;
 
   if (!Array.isArray(order_details) || order_details.length === 0) {
     return res.status(400).json({ error: 'order_details must be a non-empty array' });
@@ -209,10 +209,10 @@ router.post('/', async (req, res) => {
     await client.query('BEGIN');
 
     const orderResult = await client.query(
-      `INSERT INTO orders (name, order_date, payment_type_id, status, remarks)
+      `INSERT INTO orders (name, order_date, payment_type_id, status_id, remarks)
        VALUES ($1, NOW(), $2, $3, $4)
        RETURNING *`,
-      [name, payment_type_id, status ?? 'pending', remarks ?? null]
+      [name, payment_type_id, status_id ?? null, remarks ?? null]
     );
     const order = orderResult.rows[0];
 
