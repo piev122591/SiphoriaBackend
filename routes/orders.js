@@ -93,9 +93,9 @@ router.get('/by-date', async (req, res) => {
          JSON_AGG(
            JSON_BUILD_OBJECT(
              'id',        od.id,
-             'productid', od.productid,
-             'qty',       od.qty,
-             'price',     od.price
+             'product_details_id', od.product_details_id,
+             'qty',                od.qty,
+             'price',              od.price
            )
          ) AS order_details
        FROM orders o
@@ -143,16 +143,16 @@ router.get('/order-details/:id', async (req, res) => {
       `SELECT
          od.id,
          od.orderid,
-         od.productid,
+         od.product_details_id,
          od.qty,
          od.price,
          pd.sizeid,
          s.name AS size_name,
          p.name AS product_name
        FROM order_details od
-       LEFT JOIN product_details pd ON pd.productid = od.productid
+       LEFT JOIN product_details pd ON pd.id = od.product_details_id
        LEFT JOIN size s ON s.id = pd.sizeid
-       LEFT JOIN products p ON p.id = od.productid
+       LEFT JOIN products p ON p.id = pd.productid
        WHERE od.orderid = $1`,
       [id]
     );
@@ -205,10 +205,10 @@ router.get('/:id', async (req, res) => {
          SUM(od.price * od.qty) AS total,
          JSON_AGG(
            JSON_BUILD_OBJECT(
-             'id',        od.id,
-             'productid', od.productid,
-             'qty',       od.qty,
-             'price',     od.price
+             'id',                od.id,
+             'product_details_id', od.product_details_id,
+             'qty',               od.qty,
+             'price',             od.price
            )
          ) AS order_details
        FROM orders o
@@ -265,11 +265,11 @@ router.get('/:id', async (req, res) => {
  *                 items:
  *                   type: object
  *                   required:
- *                     - productid
+ *                     - product_details_id
  *                     - qty
  *                     - price
  *                   properties:
- *                     productid:
+ *                     product_details_id:
  *                       type: integer
  *                       example: 1
  *                     qty:
@@ -309,10 +309,10 @@ router.post('/', async (req, res) => {
     const insertedDetails = [];
     for (const detail of order_details) {
       const detailResult = await client.query(
-        `INSERT INTO order_details (orderid, productid, qty, price)
+        `INSERT INTO order_details (orderid, product_details_id, qty, price)
          VALUES ($1, $2, $3, $4)
          RETURNING *`,
-        [order.id, detail.productid, detail.qty, detail.price]
+        [order.id, detail.product_details_id, detail.qty, detail.price]
       );
       insertedDetails.push(detailResult.rows[0]);
     }
