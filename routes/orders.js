@@ -44,33 +44,6 @@ router.get('/', async (req, res) => {
  *       404:
  *         description: Order not found
  */
-router.get('/:id', async (req, res) => {
-  try {
-    const pool = req.app.locals.pool;
-    const { id } = req.params;
-
-    const orderResult = await pool.query('SELECT * FROM orders WHERE id = $1', [id]);
-
-    if (orderResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-
-    const detailsResult = await pool.query(
-      'SELECT * FROM order_details WHERE orderid = $1',
-      [id]
-    );
-
-    res.json({
-      ...orderResult.rows[0],
-      order_details: detailsResult.rows
-    });
-
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch order' });
-  }
-});
-
 /**
  * @swagger
  * /orders/by-date:
@@ -137,6 +110,33 @@ router.get('/by-date', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch orders by date range' });
+  }
+});
+
+router.get('/:id', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const { id } = req.params;
+
+    const orderResult = await pool.query('SELECT * FROM orders WHERE id = $1', [id]);
+
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    const detailsResult = await pool.query(
+      'SELECT * FROM order_details WHERE orderid = $1',
+      [id]
+    );
+
+    res.json({
+      ...orderResult.rows[0],
+      order_details: detailsResult.rows
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch order' });
   }
 });
 
