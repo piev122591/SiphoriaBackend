@@ -237,7 +237,7 @@ router.post('/', async (req, res) => {
   } catch (error) {
     await client.query('ROLLBACK');
     console.error(error);
-    res.status(500).json({ error: 'Failed to create order' });
+    res.status(500).json({ error: 'Failed to create order', detail: error.message });
   } finally {
     client.release();
   }
