@@ -89,6 +89,7 @@ router.get('/by-date', async (req, res) => {
          o.payment_type_id,
          o.status_id,
          o.remarks,
+         SUM(od.price * od.qty) AS total,
          JSON_AGG(
            JSON_BUILD_OBJECT(
              'id',        od.id,
@@ -113,30 +114,119 @@ router.get('/by-date', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /orders/order-details/{id}:
+ *   get:
+ *     tags:
+ *       - Orders
+ *     summary: Get order details by order ID
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         example: 1
+ *     responses:
+ *       200:
+ *         description: List of order details for the given order
+ *       404:
+ *         description: No order details found
+ */
+router.get('/order-details/:id', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const { id } = req.params;
+
+    const result = await pool.query(
+      `SELECT
+         od.id,
+         od.orderid,
+         od.productid,
+         od.qty,
+         od.price,
+         pd.sizeid,
+         s.name AS size_name,
+         p.name AS product_name
+       FROM order_details od
+       LEFT JOIN product_details pd ON pd.productid = od.productid
+       LEFT JOIN size s ON s.id = pd.sizeid
+       LEFT JOIN products p ON p.id = od.productid
+       WHERE od.orderid = $1`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'No order details found for this order' });
+    }
+
+    res.json(result.rows);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch order details', detail: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /orders/{id}:
+ *   get:
+ *     tags:
+ *       - Orders
+ *     summary: Get order with order details by ID
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         example: 1
+ *     responses:
+ *       200:
+ *         description: Order with details and total
+ *       404:
+ *         description: Order not found
+ */
 router.get('/:id', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
     const { id } = req.params;
 
-    const orderResult = await pool.query('SELECT * FROM orders WHERE id = $1', [id]);
-
-    if (orderResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-
-    const detailsResult = await pool.query(
-      'SELECT * FROM order_details WHERE orderid = $1',
+    const result = await pool.query(
+      `SELECT
+         o.id,
+         o.name,
+         o.order_date,
+         o.payment_type_id,
+         o.status_id,
+         o.remarks,
+         SUM(od.price * od.qty) AS total,
+         JSON_AGG(
+           JSON_BUILD_OBJECT(
+             'id',        od.id,
+             'productid', od.productid,
+             'qty',       od.qty,
+             'price',     od.price
+           )
+         ) AS order_details
+       FROM orders o
+       JOIN order_details od ON od.orderid = o.id
+       WHERE o.id = $1
+       GROUP BY o.id, o.name, o.order_date, o.payment_type_id, o.status_id, o.remarks`,
       [id]
     );
 
-    res.json({
-      ...orderResult.rows[0],
-      order_details: detailsResult.rows
-    });
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    res.json(result.rows[0]);
 
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Failed to fetch order' });
+    res.status(500).json({ error: 'Failed to fetch order', detail: error.message });
   }
 });
 
