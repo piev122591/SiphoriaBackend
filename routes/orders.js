@@ -114,7 +114,7 @@ router.get('/by-date', async (req, res) => {
          o.name,
          o.order_date,
          o.payment_type_id,
-         o.status,
+         o.status_id,
          o.remarks,
          JSON_AGG(
            JSON_BUILD_OBJECT(
@@ -127,7 +127,7 @@ router.get('/by-date', async (req, res) => {
        FROM orders o
        JOIN order_details od ON od.orderid = o.id
        WHERE o.order_date::date BETWEEN $1 AND $2
-       GROUP BY o.id, o.name, o.order_date, o.payment_type_id, o.status, o.remarks
+       GROUP BY o.id, o.name, o.order_date, o.payment_type_id, o.status_id, o.remarks
        ORDER BY o.order_date DESC`,
       [start_date, end_date]
     );
