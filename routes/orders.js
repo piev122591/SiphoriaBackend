@@ -333,4 +333,67 @@ router.post('/', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /orders/{id}/status:
+ *   patch:
+ *     tags:
+ *       - Orders
+ *     summary: Update order status by order ID
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         example: 1
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - status_id
+ *             properties:
+ *               status_id:
+ *                 type: integer
+ *                 example: 2
+ *     responses:
+ *       200:
+ *         description: Order status updated successfully
+ *       400:
+ *         description: status_id is required
+ *       404:
+ *         description: Order not found
+ *       500:
+ *         description: Failed to update order status
+ */
+router.patch('/:id/status', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const { id } = req.params;
+    const { status_id } = req.body;
+
+    if (status_id === undefined || status_id === null) {
+      return res.status(400).json({ error: 'status_id is required' });
+    }
+
+    const result = await pool.query(
+      `UPDATE orders SET status_id = $1 WHERE id = $2 RETURNING *`,
+      [status_id, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update order status', detail: error.message });
+  }
+});
+
 module.exports = router;

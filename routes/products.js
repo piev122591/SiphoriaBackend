@@ -47,19 +47,46 @@ const router = express.Router();
  *   post:
  *     tags:
  *       - Products
- *     summary: Create new Products
+ *     summary: Create a new product
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - categoryid
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: MATCHA LATTE
+ *               categoryid:
+ *                 type: integer
+ *                 example: 1
+ *     responses:
+ *       201:
+ *         description: Product created successfully
+ *       400:
+ *         description: name and categoryid are required
+ *       500:
+ *         description: Failed to create product
  */
 router.post('/', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
-    const { name, price } = req.body;
+    const { name, categoryid } = req.body;
+
+    if (!name || categoryid === undefined || categoryid === null) {
+      return res.status(400).json({ error: 'name and categoryid are required' });
+    }
 
     const result = await pool.query(
-      'INSERT INTO product (name, price) VALUES ($1, $2) RETURNING *',
-      [name, price]
+      'INSERT INTO products (name, categoryid) VALUES ($1, $2) RETURNING *',
+      [name, categoryid]
     );
 
-    res.json(result.rows[0]);
+    res.status(201).json(result.rows[0]);
 
   } catch (error) {
     console.error(error);
