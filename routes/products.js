@@ -24,10 +24,10 @@ const router = express.Router();
               MAX(pd.price) AS price,
               a.name AS "categoryName",
               STRING_AGG(s.name, ', ') AS sizes
-              FROM products p 
-              JOIN product_details pd ON pd.productid = p.id 
+              FROM products p
+              LEFT JOIN product_details pd ON pd.productid = p.id
               JOIN category a ON p.categoryid = a.id
-              JOIN size s ON pd.sizeid = s.id 
+              LEFT JOIN size s ON pd.sizeid = s.id
               GROUP BY p.id, p.name, p.categoryid, a.name`
             );
 
