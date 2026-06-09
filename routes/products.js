@@ -12,34 +12,32 @@ const router = express.Router();
  *       200:
  *         description: List of products
  */
-    router.get('/', async (req, res) => {
-      try {
-        const pool = req.app.locals.pool;
+router.get('/', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
 
-        const result = await pool.query(`SELECT 
-              p.id,
-              p.name,
-              p.categoryid,
-              MAX(pd.image_url) AS image_url,
-              MAX(pd.price) AS price,
-              a.name AS "categoryName",
-              STRING_AGG(s.name, ', ') AS sizes
-              FROM products p
-              LEFT JOIN product_details pd ON pd.productid = p.id
-              JOIN category a ON p.categoryid = a.id
-              LEFT JOIN size s ON pd.sizeid = s.id
-              GROUP BY p.id, p.name, p.categoryid, a.name`
-            );
+    const result = await pool.query(`SELECT
+          p.id,
+          p.name,
+          p.categoryid,
+          MAX(pd.image_url) AS image_url,
+          MAX(pd.price) AS price,
+          a.name AS "categoryName",
+          STRING_AGG(s.name, ', ') AS sizes
+          FROM products p
+          LEFT JOIN product_details pd ON pd.productid = p.id
+          JOIN category a ON p.categoryid = a.id
+          LEFT JOIN size s ON pd.sizeid = s.id
+          GROUP BY p.id, p.name, p.categoryid, a.name`
+    );
 
-        res.json(result.rows);
+    res.json(result.rows);
 
-      } catch (error) {
-        console.error("Products API error:", error);
-        res.status(500).json({ error: 'Failed to fetch products' });
-      }
-    });
-
-  
+  } catch (error) {
+    console.error("Products API error:", error);
+    res.status(500).json({ error: 'Failed to fetch products' });
+  }
+});
 
 /**
  * @swagger
@@ -94,19 +92,18 @@ router.post('/', async (req, res) => {
   }
 });
 
-
 /**
  * @swagger
- * /product-price:
+ * /products/price:
  *   get:
  *     tags:
  *       - Products
- *     summary: Get all Product Price
+ *     summary: Get all product prices
  *     responses:
  *       200:
- *         description: List of product Price
+ *         description: List of product prices
  */
-router.get('/', async (req, res) => {
+router.get('/price', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
 
@@ -121,13 +118,29 @@ router.get('/', async (req, res) => {
 
 /**
  * @swagger
- * /product-price:
+ * /products/price:
  *   post:
  *     tags:
  *       - Products
  *     summary: Create new product price
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               price:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Product price created successfully
+ *       500:
+ *         description: Failed to create product size
  */
-router.post('/', async (req, res) => {
+router.post('/price', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
     const { name, price } = req.body;
@@ -145,20 +158,18 @@ router.post('/', async (req, res) => {
   }
 });
 
-
-
 /**
  * @swagger
- * /product-size:
+ * /products/size:
  *   get:
  *     tags:
  *       - Products
- *     summary: Get all Size
+ *     summary: Get all sizes
  *     responses:
  *       200:
- *         description: List of size
+ *         description: List of sizes
  */
-router.get('/', async (req, res) => {
+router.get('/size', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
 
@@ -173,13 +184,29 @@ router.get('/', async (req, res) => {
 
 /**
  * @swagger
- * /product-size:
+ * /products/size:
  *   post:
  *     tags:
  *       - Products
  *     summary: Create new size
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               price:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Size created successfully
+ *       500:
+ *         description: Failed to create size
  */
-router.post('/', async (req, res) => {
+router.post('/size', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
     const { name, price } = req.body;
@@ -196,7 +223,5 @@ router.post('/', async (req, res) => {
     res.status(500).json({ error: 'Failed to create size' });
   }
 });
-
-
 
 module.exports = router;

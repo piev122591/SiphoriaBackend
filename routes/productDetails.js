@@ -41,6 +41,66 @@ router.get('/', async (req, res) => {
 
 /**
  * @swagger
+ * /productDetails:
+ *   post:
+ *     tags:
+ *       - Product Details
+ *     summary: Add new product detail
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - productid
+ *               - sizeid
+ *               - price
+ *             properties:
+ *               productid:
+ *                 type: integer
+ *                 example: 1
+ *               sizeid:
+ *                 type: integer
+ *                 example: 2
+ *               price:
+ *                 type: number
+ *                 example: 110
+ *               image_url:
+ *                 type: string
+ *                 example: https://example.com/image.png
+ *     responses:
+ *       201:
+ *         description: Product detail created successfully
+ *       400:
+ *         description: productid, sizeid, and price are required
+ *       500:
+ *         description: Failed to create product detail
+ */
+router.post('/', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const { productid, sizeid, price, image_url } = req.body;
+
+    if (!productid || !sizeid || price === undefined || price === null) {
+      return res.status(400).json({ error: 'productid, sizeid, and price are required' });
+    }
+
+    const result = await pool.query(
+      'INSERT INTO product_details (productid, sizeid, price, image_url) VALUES ($1, $2, $3, $4) RETURNING *',
+      [productid, sizeid, price, image_url || null]
+    );
+
+    res.status(201).json(result.rows[0]);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create product detail' });
+  }
+});
+
+/**
+ * @swagger
  * /productDetails/{id}/price:
  *   patch:
  *     tags:
