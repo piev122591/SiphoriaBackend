@@ -58,6 +58,9 @@ app.use('/category', categoryRoutes);
 const ordersRoutes = require('./routes/orders');
 app.use('/orders', ordersRoutes);
 
+const inventoryRoutes = require('./routes/inventory');
+app.use('/inventory', inventoryRoutes);
+
 const usersRoutes = require('./routes/users');
 app.use('/users', usersRoutes);
 
