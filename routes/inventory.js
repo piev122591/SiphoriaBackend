@@ -7,7 +7,7 @@ const router = express.Router();
  *   get:
  *     tags:
  *       - Inventory
- *     summary: Get all inventory items, with quantity_remaining computed from Completed orders
+ *     summary: Get all inventory items, with quantity (total stocked-in) and quantity_remaining computed
  *     responses:
  *       200:
  *         description: List of inventory items
@@ -17,7 +17,12 @@ router.get('/', async (req, res) => {
     const pool = req.app.locals.pool;
 
     const result = await pool.query(`
-      WITH consumed AS (
+      WITH stocked AS (
+        SELECT inventory_id, SUM(quantity) AS total_stocked
+        FROM inventory_details
+        GROUP BY inventory_id
+      ),
+      consumed AS (
         SELECT pdi.inventory_id, SUM(pdi.quantity_used * od.qty) AS total_used
         FROM product_details_inventory pdi
         JOIN order_details od ON od.product_details_id = pdi.product_details_id
@@ -29,12 +34,13 @@ router.get('/', async (req, res) => {
         i.id,
         i.name,
         i.unit,
-        i.quantity,
+        COALESCE(stocked.total_stocked, 0) AS quantity,
         COALESCE(consumed.total_used, 0) AS consumed,
-        i.quantity - COALESCE(consumed.total_used, 0) AS quantity_remaining,
+        COALESCE(stocked.total_stocked, 0) - COALESCE(consumed.total_used, 0) AS quantity_remaining,
         i.reorder_level,
         i.updated_at
       FROM inventory i
+      LEFT JOIN stocked ON stocked.inventory_id = i.id
       LEFT JOIN consumed ON consumed.inventory_id = i.id
       ORDER BY i.name
     `);
@@ -53,7 +59,7 @@ router.get('/', async (req, res) => {
  *   post:
  *     tags:
  *       - Inventory
- *     summary: Create a new inventory item
+ *     summary: Create a new inventory item, optionally with an opening stock record
  *     requestBody:
  *       required: true
  *       content:
@@ -69,12 +75,13 @@ router.get('/', async (req, res) => {
  *               unit:
  *                 type: string
  *                 example: pcs
- *               quantity:
- *                 type: number
- *                 example: 100
  *               reorder_level:
  *                 type: number
  *                 example: 20
+ *               quantity:
+ *                 type: number
+ *                 description: Optional opening stock -- recorded as the first inventory_details row
+ *                 example: 100
  *     responses:
  *       201:
  *         description: Inventory item created successfully
@@ -84,89 +91,43 @@ router.get('/', async (req, res) => {
  *         description: Failed to create inventory item
  */
 router.post('/', async (req, res) => {
-  try {
-    const pool = req.app.locals.pool;
-    const { name, unit, quantity, reorder_level } = req.body;
+  const pool = req.app.locals.pool;
+  const { name, unit, reorder_level, quantity } = req.body;
 
-    if (!name) {
-      return res.status(400).json({ error: 'name is required' });
-    }
-
-    const result = await pool.query(
-      `INSERT INTO inventory (name, unit, quantity, reorder_level)
-       VALUES ($1, $2, $3, $4)
-       RETURNING *`,
-      [name, unit || 'pcs', quantity ?? 0, reorder_level ?? null]
-    );
-
-    res.status(201).json(result.rows[0]);
-
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to create inventory item' });
+  if (!name) {
+    return res.status(400).json({ error: 'name is required' });
   }
-});
 
-/**
- * @swagger
- * /inventory/{id}/quantity:
- *   patch:
- *     tags:
- *       - Inventory
- *     summary: Set the stock quantity of an inventory item (restock/adjustment)
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         example: 1
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - quantity
- *             properties:
- *               quantity:
- *                 type: number
- *                 example: 150
- *     responses:
- *       200:
- *         description: Quantity updated successfully
- *       400:
- *         description: quantity is required
- *       404:
- *         description: Inventory item not found
- *       500:
- *         description: Failed to update quantity
- */
-router.patch('/:id/quantity', async (req, res) => {
+  const client = await pool.connect();
   try {
-    const pool = req.app.locals.pool;
-    const { id } = req.params;
-    const { quantity } = req.body;
+    await client.query('BEGIN');
 
-    if (quantity === undefined || quantity === null) {
-      return res.status(400).json({ error: 'quantity is required' });
-    }
-
-    const result = await pool.query(
-      `UPDATE inventory SET quantity = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
-      [quantity, id]
+    const itemResult = await client.query(
+      `INSERT INTO inventory (name, unit, reorder_level)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [name, unit || 'pcs', reorder_level ?? null]
     );
+    const item = itemResult.rows[0];
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Inventory item not found' });
+    if (quantity !== undefined && quantity !== null && Number(quantity) !== 0) {
+      await client.query(
+        `INSERT INTO inventory_details (inventory_id, quantity, note)
+         VALUES ($1, $2, $3)`,
+        [item.id, quantity, 'Initial stock']
+      );
     }
 
-    res.json(result.rows[0]);
+    await client.query('COMMIT');
+
+    res.status(201).json(item);
 
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error(error);
-    res.status(500).json({ error: 'Failed to update quantity', detail: error.message });
+    res.status(500).json({ error: 'Failed to create inventory item', detail: error.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -176,7 +137,7 @@ router.patch('/:id/quantity', async (req, res) => {
  *   put:
  *     tags:
  *       - Inventory
- *     summary: Update an inventory item by ID
+ *     summary: Update an inventory item's metadata by ID
  *     parameters:
  *       - in: path
  *         name: id
@@ -241,6 +202,114 @@ router.put('/:id', async (req, res) => {
 
 /**
  * @swagger
+ * /inventory/{id}/details:
+ *   get:
+ *     tags:
+ *       - Inventory
+ *     summary: Get the stock-in history (restocks) for an inventory item
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         example: 1
+ *     responses:
+ *       200:
+ *         description: List of stock-in records for the item
+ */
+router.get('/:id/details', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const { id } = req.params;
+
+    const result = await pool.query(
+      `SELECT id, inventory_id, quantity, note, created_at
+       FROM inventory_details
+       WHERE inventory_id = $1
+       ORDER BY created_at DESC`,
+      [id]
+    );
+
+    res.json(result.rows);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch stock-in history', detail: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /inventory/{id}/details:
+ *   post:
+ *     tags:
+ *       - Inventory
+ *     summary: Record a new stock-in (restock) event for an inventory item
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         example: 1
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - quantity
+ *             properties:
+ *               quantity:
+ *                 type: number
+ *                 example: 50
+ *               note:
+ *                 type: string
+ *                 example: Weekly delivery
+ *     responses:
+ *       201:
+ *         description: Stock-in record created successfully
+ *       400:
+ *         description: quantity is required
+ *       404:
+ *         description: Inventory item not found
+ *       500:
+ *         description: Failed to record stock-in
+ */
+router.post('/:id/details', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const { id } = req.params;
+    const { quantity, note } = req.body;
+
+    if (quantity === undefined || quantity === null) {
+      return res.status(400).json({ error: 'quantity is required' });
+    }
+
+    const itemCheck = await pool.query('SELECT id FROM inventory WHERE id = $1', [id]);
+    if (itemCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Inventory item not found' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO inventory_details (inventory_id, quantity, note)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [id, quantity, note ?? null]
+    );
+
+    res.status(201).json(result.rows[0]);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to record stock-in', detail: error.message });
+  }
+});
+
+/**
+ * @swagger
  * /inventory/product-details/{product_details_id}:
  *   get:
  *     tags:
@@ -263,7 +332,12 @@ router.get('/product-details/:product_details_id', async (req, res) => {
     const { product_details_id } = req.params;
 
     const result = await pool.query(
-      `WITH consumed AS (
+      `WITH stocked AS (
+         SELECT inventory_id, SUM(quantity) AS total_stocked
+         FROM inventory_details
+         GROUP BY inventory_id
+       ),
+       consumed AS (
          SELECT pdi2.inventory_id, SUM(pdi2.quantity_used * od.qty) AS total_used
          FROM product_details_inventory pdi2
          JOIN order_details od ON od.product_details_id = pdi2.product_details_id
@@ -278,10 +352,11 @@ router.get('/product-details/:product_details_id', async (req, res) => {
          pdi.quantity_used,
          i.name AS inventory_name,
          i.unit AS inventory_unit,
-         i.quantity AS inventory_quantity,
-         i.quantity - COALESCE(consumed.total_used, 0) AS inventory_quantity_remaining
+         COALESCE(stocked.total_stocked, 0) AS inventory_quantity,
+         COALESCE(stocked.total_stocked, 0) - COALESCE(consumed.total_used, 0) AS inventory_quantity_remaining
        FROM product_details_inventory pdi
        JOIN inventory i ON i.id = pdi.inventory_id
+       LEFT JOIN stocked ON stocked.inventory_id = i.id
        LEFT JOIN consumed ON consumed.inventory_id = i.id
        WHERE pdi.product_details_id = $1
        ORDER BY i.name`,
