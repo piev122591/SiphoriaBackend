@@ -310,6 +310,132 @@ router.post('/:id/details', async (req, res) => {
 
 /**
  * @swagger
+ * /inventory/{id}/details/{detail_id}:
+ *   patch:
+ *     tags:
+ *       - Inventory
+ *     summary: Correct a stock-in record (wrong quantity, wrong note) for an inventory item
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         example: 1
+ *       - in: path
+ *         name: detail_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         example: 3
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               quantity:
+ *                 type: number
+ *                 example: 40
+ *               note:
+ *                 type: string
+ *                 example: Corrected count
+ *     responses:
+ *       200:
+ *         description: Stock-in record updated successfully
+ *       400:
+ *         description: quantity or note is required
+ *       404:
+ *         description: Stock-in record not found
+ *       500:
+ *         description: Failed to update stock-in record
+ */
+router.patch('/:id/details/:detail_id', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const { id, detail_id } = req.params;
+    const { quantity, note } = req.body;
+
+    if (quantity === undefined && note === undefined) {
+      return res.status(400).json({ error: 'quantity or note is required' });
+    }
+
+    const result = await pool.query(
+      `UPDATE inventory_details
+       SET quantity = COALESCE($1, quantity),
+           note = COALESCE($2, note)
+       WHERE id = $3 AND inventory_id = $4
+       RETURNING *`,
+      [quantity ?? null, note ?? null, detail_id, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Stock-in record not found' });
+    }
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update stock-in record', detail: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /inventory/{id}/details/{detail_id}:
+ *   delete:
+ *     tags:
+ *       - Inventory
+ *     summary: Remove a stock-in record (e.g. added by mistake) from an inventory item
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         example: 1
+ *       - in: path
+ *         name: detail_id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         example: 3
+ *     responses:
+ *       200:
+ *         description: Stock-in record removed successfully
+ *       404:
+ *         description: Stock-in record not found
+ *       500:
+ *         description: Failed to remove stock-in record
+ */
+router.delete('/:id/details/:detail_id', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const { id, detail_id } = req.params;
+
+    const result = await pool.query(
+      `DELETE FROM inventory_details
+       WHERE id = $1 AND inventory_id = $2
+       RETURNING *`,
+      [detail_id, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Stock-in record not found' });
+    }
+
+    res.json({ message: 'Stock-in record removed', removed: result.rows[0] });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to remove stock-in record', detail: error.message });
+  }
+});
+
+/**
+ * @swagger
  * /inventory/product-details/{product_details_id}:
  *   get:
  *     tags:

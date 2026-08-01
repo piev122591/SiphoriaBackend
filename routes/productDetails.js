@@ -236,4 +236,55 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /productDetails/{id}:
+ *   delete:
+ *     tags:
+ *       - Product Details
+ *     summary: Delete a product detail (size/SKU) by ID
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         example: 1
+ *     responses:
+ *       200:
+ *         description: Product detail deleted successfully
+ *       404:
+ *         description: Product detail not found
+ *       409:
+ *         description: Product detail has existing recipe lines/orders and cannot be deleted
+ *       500:
+ *         description: Failed to delete product detail
+ */
+router.delete('/:id', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const { id } = req.params;
+
+    const result = await pool.query('DELETE FROM product_details WHERE id = $1 RETURNING *', [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Product detail not found' });
+    }
+
+    res.json({ message: 'Product detail removed', removed: result.rows[0] });
+
+  } catch (error) {
+    console.error(error);
+
+    if (error.code === '23503') {
+      return res.status(409).json({
+        error: 'Cannot delete product detail: it still has inventory recipe lines or orders referencing it',
+        detail: error.message
+      });
+    }
+
+    res.status(500).json({ error: 'Failed to delete product detail', detail: error.message });
+  }
+});
+
 module.exports = router;

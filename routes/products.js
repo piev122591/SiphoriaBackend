@@ -94,6 +94,57 @@ router.post('/', async (req, res) => {
 
 /**
  * @swagger
+ * /products/{id}:
+ *   delete:
+ *     tags:
+ *       - Products
+ *     summary: Delete a product by ID
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         example: 1
+ *     responses:
+ *       200:
+ *         description: Product deleted successfully
+ *       404:
+ *         description: Product not found
+ *       409:
+ *         description: Product has existing product details/orders and cannot be deleted
+ *       500:
+ *         description: Failed to delete product
+ */
+router.delete('/:id', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const { id } = req.params;
+
+    const result = await pool.query('DELETE FROM products WHERE id = $1 RETURNING *', [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    res.json({ message: 'Product removed', removed: result.rows[0] });
+
+  } catch (error) {
+    console.error(error);
+
+    if (error.code === '23503') {
+      return res.status(409).json({
+        error: 'Cannot delete product: it still has product details (sizes/prices) or orders referencing it',
+        detail: error.message
+      });
+    }
+
+    res.status(500).json({ error: 'Failed to delete product', detail: error.message });
+  }
+});
+
+/**
+ * @swagger
  * /products/price:
  *   get:
  *     tags:
