@@ -20,12 +20,13 @@ router.get('/', async (req, res) => {
           p.categoryid,
           pd.image_url,
           pd.price,
+          pd.fc,
           a.name AS "categoryName",
           s.name as "size"
-          FROM products p 
-          JOIN product_details pd ON pd.productid = p.id 
+          FROM products p
+          JOIN product_details pd ON pd.productid = p.id
           JOIN category a ON p.categoryid = a.id
-          JOIN size s ON pd.sizeid = s.id 
+          JOIN size s ON pd.sizeid = s.id
           `);
 
     res.json(result.rows);
@@ -66,6 +67,9 @@ router.get('/', async (req, res) => {
  *               price:
  *                 type: number
  *                 example: 110
+ *               fc:
+ *                 type: number
+ *                 example: 35.50
  *               image_url:
  *                 type: string
  *                 example: https://example.com/image.png
@@ -80,15 +84,15 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
-    const { productid, sizeid, price, image_url } = req.body;
+    const { productid, sizeid, price, fc, image_url } = req.body;
 
     if (!productid || !sizeid || price === undefined || price === null) {
       return res.status(400).json({ error: 'productid, sizeid, and price are required' });
     }
 
     const result = await pool.query(
-      'INSERT INTO product_details (productid, sizeid, price, image_url) VALUES ($1, $2, $3, $4) RETURNING *',
-      [productid, sizeid, price, image_url || null]
+      'INSERT INTO product_details (productid, sizeid, price, fc, image_url) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [productid, sizeid, price, fc ?? null, image_url || null]
     );
 
     res.status(201).json(result.rows[0]);
@@ -196,6 +200,9 @@ router.patch('/:id/price', async (req, res) => {
  *               price:
  *                 type: number
  *                 example: 110
+ *               fc:
+ *                 type: number
+ *                 example: 35.50
  *               image_url:
  *                 type: string
  *                 example: https://example.com/image.png
@@ -213,15 +220,15 @@ router.put('/:id', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
     const { id } = req.params;
-    const { productid, sizeid, price, image_url } = req.body;
+    const { productid, sizeid, price, fc, image_url } = req.body;
 
     if (!productid || !sizeid || price === undefined || price === null) {
       return res.status(400).json({ error: 'productid, sizeid, and price are required' });
     }
 
     const result = await pool.query(
-      `UPDATE product_details SET productid = $1, sizeid = $2, price = $3, image_url = $4 WHERE id = $5 RETURNING *`,
-      [productid, sizeid, price, image_url || null, id]
+      `UPDATE product_details SET productid = $1, sizeid = $2, price = $3, fc = $4, image_url = $5 WHERE id = $6 RETURNING *`,
+      [productid, sizeid, price, fc ?? null, image_url || null, id]
     );
 
     if (result.rows.length === 0) {

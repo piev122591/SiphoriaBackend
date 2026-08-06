@@ -22,6 +22,7 @@ router.get('/', async (req, res) => {
           p.categoryid,
           MAX(pd.image_url) AS image_url,
           MAX(pd.price) AS price,
+          MAX(pd.fc) AS fc,
           a.name AS "categoryName",
           STRING_AGG(s.name, ', ') AS sizes
           FROM products p
