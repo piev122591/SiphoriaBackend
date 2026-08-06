@@ -64,6 +64,9 @@ app.use('/inventory', inventoryRoutes);
 const usersRoutes = require('./routes/users');
 app.use('/users', usersRoutes);
 
+const queryRoutes = require('./routes/query');
+app.use('/query', queryRoutes);
+
 
 /* ===============================
    📘 Swagger Setup

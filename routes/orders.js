@@ -95,7 +95,8 @@ router.get('/by-date', async (req, res) => {
              'id',        od.id,
              'product_details_id', od.product_details_id,
              'qty',                od.qty,
-             'price',              od.price
+             'price',              od.price,
+             'fc',                 od.fc
            )
          ) AS order_details
        FROM orders o
@@ -146,6 +147,7 @@ router.get('/order-details/:id', async (req, res) => {
          od.product_details_id,
          od.qty,
          od.price,
+         od.fc,
          pd.sizeid,
          s.name AS size_name,
          p.name AS product_name
@@ -208,7 +210,8 @@ router.get('/:id', async (req, res) => {
              'id',                od.id,
              'product_details_id', od.product_details_id,
              'qty',               od.qty,
-             'price',             od.price
+             'price',             od.price,
+             'fc',                od.fc
            )
          ) AS order_details
        FROM orders o
@@ -278,6 +281,9 @@ router.get('/:id', async (req, res) => {
  *                     price:
  *                       type: number
  *                       example: 150.00
+ *                     fc:
+ *                       type: number
+ *                       example: 35.50
  *     responses:
  *       201:
  *         description: Order created successfully
@@ -309,10 +315,10 @@ router.post('/', async (req, res) => {
     const insertedDetails = [];
     for (const detail of order_details) {
       const detailResult = await client.query(
-        `INSERT INTO order_details (orderid, product_details_id, qty, price)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO order_details (orderid, product_details_id, qty, price, fc)
+         VALUES ($1, $2, $3, $4, $5)
          RETURNING *`,
-        [order.id, detail.product_details_id, detail.qty, detail.price]
+        [order.id, detail.product_details_id, detail.qty, detail.price, detail.fc ?? null]
       );
       insertedDetails.push(detailResult.rows[0]);
     }
