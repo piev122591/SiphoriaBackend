@@ -49,6 +49,7 @@ router.get('/daily-sales', async (req, res) => {
        FROM orders o
        JOIN order_details od ON od.orderid = o.id
        WHERE o.order_date::date BETWEEN $1 AND $2
+         AND o.status_id = 2
        GROUP BY o.order_date::date
        ORDER BY o.order_date::date`,
       [start_date, end_date]
