@@ -96,6 +96,83 @@ router.post('/', async (req, res) => {
 /**
  * @swagger
  * /products/{id}:
+ *   put:
+ *     tags:
+ *       - Products
+ *     summary: Update a product by ID
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         example: 1
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - categoryid
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: MATCHA LATTE
+ *               categoryid:
+ *                 type: integer
+ *                 example: 1
+ *     responses:
+ *       200:
+ *         description: Product updated successfully
+ *       400:
+ *         description: name and categoryid are required
+ *       404:
+ *         description: Product not found
+ *       409:
+ *         description: categoryid does not reference an existing category
+ *       500:
+ *         description: Failed to update product
+ */
+router.put('/:id', async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const { id } = req.params;
+    const { name, categoryid } = req.body;
+
+    if (!name || categoryid === undefined || categoryid === null) {
+      return res.status(400).json({ error: 'name and categoryid are required' });
+    }
+
+    const result = await pool.query(
+      'UPDATE products SET name = $1, categoryid = $2 WHERE id = $3 RETURNING *',
+      [name, categoryid, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error(error);
+
+    if (error.code === '23503') {
+      return res.status(409).json({
+        error: 'categoryid does not reference an existing category',
+        detail: error.message
+      });
+    }
+
+    res.status(500).json({ error: 'Failed to update product', detail: error.message });
+  }
+});
+
+/**
+ * @swagger
+ * /products/{id}:
  *   delete:
  *     tags:
  *       - Products
