@@ -67,6 +67,9 @@ app.use('/users', usersRoutes);
 const queryRoutes = require('./routes/query');
 app.use('/query', queryRoutes);
 
+const reportsRoutes = require('./routes/reports');
+app.use('/reports', reportsRoutes);
+
 
 /* ===============================
    📘 Swagger Setup
