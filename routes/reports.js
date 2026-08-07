@@ -42,10 +42,10 @@ router.get('/daily-sales', async (req, res) => {
       `SELECT
          o.order_date::date AS report_date,
          SUM(od.qty) AS total_serving,
-         SUM(od.price * od.qty) AS gross_sales,
-         SUM(od.fc * od.qty) AS food_cost,
-         SUM(od.price * od.qty) * 0.12 AS vat,
-         SUM(od.price * od.qty) - SUM(od.fc * od.qty) - (SUM(od.price * od.qty) * 0.12) AS gross_profit
+         SUM(od.price::numeric * od.qty) AS gross_sales,
+         SUM(od.fc::numeric * od.qty) AS food_cost,
+         SUM(od.price::numeric * od.qty) * 0.12 AS vat,
+         SUM(od.price::numeric * od.qty) - SUM(od.fc::numeric * od.qty) - (SUM(od.price::numeric * od.qty) * 0.12) AS gross_profit
        FROM orders o
        JOIN order_details od ON od.orderid = o.id
        WHERE o.order_date::date BETWEEN $1 AND $2
