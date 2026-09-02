@@ -53,7 +53,11 @@ router.get('/daily-sales', async (req, res) => {
            od.qty AS total_serving,
            od.price::numeric * od.qty AS gross_sales,
            od.fc::numeric * od.qty AS food_cost,
-           od.price::numeric * od.qty * COALESCE(o.discount, 0) / 100 AS discount_amount,
+           CASE
+             WHEN o.discount_id IN (2, 3) THEN (od.price::numeric * od.qty / 1.12) * 0.20
+             WHEN o.discount_id = 1 THEN od.price::numeric * od.qty * COALESCE(o.discount, 0) / 100
+             ELSE od.price::numeric * od.qty * COALESCE(o.discount, 0) / 100
+           END AS discount_amount,
            CASE
              WHEN o.discount_id IN (2, 3) THEN 0
              ELSE (od.price::numeric * od.qty - (od.price::numeric * od.qty * COALESCE(o.discount, 0) / 100)) * 0.12
