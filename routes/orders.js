@@ -263,6 +263,12 @@ router.get('/:id', async (req, res) => {
  *               remarks:
  *                 type: string
  *                 example: Extra sugar please
+ *               discount_id:
+ *                 type: integer
+ *                 example: 1
+ *               discount:
+ *                 type: number
+ *                 example: 10.00
  *               order_details:
  *                 type: array
  *                 items:
@@ -294,7 +300,7 @@ router.get('/:id', async (req, res) => {
  */
 router.post('/', async (req, res) => {
   const pool = req.app.locals.pool;
-  const { name, payment_type_id, status_id, remarks, order_details } = req.body;
+  const { name, payment_type_id, status_id, remarks, discount_id, discount, order_details } = req.body;
 
   if (!Array.isArray(order_details) || order_details.length === 0) {
     return res.status(400).json({ error: 'order_details must be a non-empty array' });
@@ -305,10 +311,10 @@ router.post('/', async (req, res) => {
     await client.query('BEGIN');
 
     const orderResult = await client.query(
-      `INSERT INTO orders (name, order_date, payment_type_id, status_id, remarks)
-       VALUES ($1, NOW(), $2, $3, $4)
+      `INSERT INTO orders (name, order_date, payment_type_id, status_id, remarks, discount_id, discount)
+       VALUES ($1, NOW(), $2, $3, $4, $5, $6)
        RETURNING *`,
-      [name, payment_type_id, status_id ?? null, remarks ?? null]
+      [name, payment_type_id, status_id ?? null, remarks ?? null, discount_id ?? null, discount ?? null]
     );
     const order = orderResult.rows[0];
 

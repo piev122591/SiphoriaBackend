@@ -55,6 +55,9 @@ app.use('/productDetails', productDetailsRoutes);
 const categoryRoutes = require('./routes/category');
 app.use('/category', categoryRoutes);
 
+const discountRoutes = require('./routes/discount');
+app.use('/discount', discountRoutes);
+
 const ordersRoutes = require('./routes/orders');
 app.use('/orders', ordersRoutes);
 
