@@ -89,6 +89,8 @@ router.get('/by-date', async (req, res) => {
          o.payment_type_id,
          o.status_id,
          o.remarks,
+         o.discount_id,
+         o.discount,
          SUM(od.price * od.qty) AS total,
          JSON_AGG(
            JSON_BUILD_OBJECT(
@@ -102,7 +104,7 @@ router.get('/by-date', async (req, res) => {
        FROM orders o
        JOIN order_details od ON od.orderid = o.id
        WHERE o.order_date::date BETWEEN $1 AND $2
-       GROUP BY o.id, o.name, o.order_date, o.payment_type_id, o.status_id, o.remarks
+       GROUP BY o.id, o.name, o.order_date, o.payment_type_id, o.status_id, o.remarks, o.discount_id, o.discount
        ORDER BY o.order_date DESC`,
       [start_date, end_date]
     );
@@ -204,6 +206,8 @@ router.get('/:id', async (req, res) => {
          o.payment_type_id,
          o.status_id,
          o.remarks,
+         o.discount_id,
+         o.discount,
          SUM(od.price * od.qty) AS total,
          JSON_AGG(
            JSON_BUILD_OBJECT(
@@ -217,7 +221,7 @@ router.get('/:id', async (req, res) => {
        FROM orders o
        JOIN order_details od ON od.orderid = o.id
        WHERE o.id = $1
-       GROUP BY o.id, o.name, o.order_date, o.payment_type_id, o.status_id, o.remarks`,
+       GROUP BY o.id, o.name, o.order_date, o.payment_type_id, o.status_id, o.remarks, o.discount_id, o.discount`,
       [id]
     );
 
