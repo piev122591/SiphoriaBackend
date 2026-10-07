@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 
+const VALID_STATIONS = ['drinks', 'kitchen'];
+
 /**
  * @swagger
  * /products:
@@ -20,6 +22,7 @@ router.get('/', async (req, res) => {
           p.id,
           p.name,
           p.categoryid,
+          p.station,
           MAX(pd.image_url) AS image_url,
           MAX(pd.price) AS price,
           MAX(pd.fc) AS fc,
@@ -29,7 +32,7 @@ router.get('/', async (req, res) => {
           LEFT JOIN product_details pd ON pd.productid = p.id
           JOIN category a ON p.categoryid = a.id
           LEFT JOIN size s ON pd.sizeid = s.id
-          GROUP BY p.id, p.name, p.categoryid, a.name`
+          GROUP BY p.id, p.name, p.categoryid, p.station, a.name`
     );
 
     res.json(result.rows);
@@ -63,26 +66,35 @@ router.get('/', async (req, res) => {
  *               categoryid:
  *                 type: integer
  *                 example: 1
+ *               station:
+ *                 type: string
+ *                 enum: [drinks, kitchen]
+ *                 nullable: true
+ *                 example: drinks
  *     responses:
  *       201:
  *         description: Product created successfully
  *       400:
- *         description: name and categoryid are required
+ *         description: name and categoryid are required, or station is invalid
  *       500:
  *         description: Failed to create product
  */
 router.post('/', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
-    const { name, categoryid } = req.body;
+    const { name, categoryid, station } = req.body;
 
     if (!name || categoryid === undefined || categoryid === null) {
       return res.status(400).json({ error: 'name and categoryid are required' });
     }
 
+    if (station !== undefined && station !== null && !VALID_STATIONS.includes(station)) {
+      return res.status(400).json({ error: "station must be 'drinks', 'kitchen', or null" });
+    }
+
     const result = await pool.query(
-      'INSERT INTO products (name, categoryid) VALUES ($1, $2) RETURNING *',
-      [name, categoryid]
+      'INSERT INTO products (name, categoryid, station) VALUES ($1, $2, $3) RETURNING *',
+      [name, categoryid, station ?? null]
     );
 
     res.status(201).json(result.rows[0]);
@@ -123,11 +135,16 @@ router.post('/', async (req, res) => {
  *               categoryid:
  *                 type: integer
  *                 example: 1
+ *               station:
+ *                 type: string
+ *                 enum: [drinks, kitchen]
+ *                 nullable: true
+ *                 example: drinks
  *     responses:
  *       200:
  *         description: Product updated successfully
  *       400:
- *         description: name and categoryid are required
+ *         description: name and categoryid are required, or station is invalid
  *       404:
  *         description: Product not found
  *       409:
@@ -139,15 +156,22 @@ router.put('/:id', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
     const { id } = req.params;
-    const { name, categoryid } = req.body;
+    const { name, categoryid, station } = req.body;
 
     if (!name || categoryid === undefined || categoryid === null) {
       return res.status(400).json({ error: 'name and categoryid are required' });
     }
 
+    const stationProvided = Object.prototype.hasOwnProperty.call(req.body, 'station');
+    if (stationProvided && station !== null && !VALID_STATIONS.includes(station)) {
+      return res.status(400).json({ error: "station must be 'drinks', 'kitchen', or null" });
+    }
+
     const result = await pool.query(
-      'UPDATE products SET name = $1, categoryid = $2 WHERE id = $3 RETURNING *',
-      [name, categoryid, id]
+      `UPDATE products
+       SET name = $1, categoryid = $2, station = CASE WHEN $3 THEN $4 ELSE station END
+       WHERE id = $5 RETURNING *`,
+      [name, categoryid, stationProvided, stationProvided ? station : null, id]
     );
 
     if (result.rows.length === 0) {

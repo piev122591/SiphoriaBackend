@@ -18,6 +18,7 @@ router.get('/', async (req, res) => {
           p.id As "productId",
           p.name,
           p.categoryid,
+          p.station,
           pd.image_url,
           pd.price,
           pd.fc,
