@@ -1,5 +1,118 @@
 const express = require('express');
 const router = express.Router();
+const { STOCK_REMAINING_SQL } = require('../lib/stock');
+
+/**
+ * Checks that current stock covers the whole order. Must run inside a transaction:
+ * it locks the affected inventory rows (FOR UPDATE) so concurrent orders for the same
+ * ingredients are serialized until COMMIT/ROLLBACK.
+ * Returns null when OK, or the 409 body { message, items } when any ingredient is short.
+ */
+async function checkStock(client, orderDetails) {
+  // Total qty per product size across all lines of the order
+  const qtyByProduct = new Map();
+  for (const d of orderDetails) {
+    const id = Number(d.product_details_id);
+    qtyByProduct.set(id, (qtyByProduct.get(id) || 0) + Number(d.qty || 0));
+  }
+  const productIds = [...qtyByProduct.keys()];
+  const qtys = productIds.map(id => qtyByProduct.get(id));
+
+  // Lock the inventory rows used by these product sizes (ordered by id to avoid deadlocks).
+  // Product sizes with no recipe lines lock nothing and are skipped.
+  const locked = await client.query(
+    `SELECT i.id
+     FROM inventory i
+     WHERE i.id IN (
+       SELECT inventory_id FROM product_details_inventory
+       WHERE product_details_id = ANY($1::bigint[]) AND quantity_used > 0
+     )
+     ORDER BY i.id
+     FOR UPDATE`,
+    [productIds]
+  );
+  if (locked.rows.length === 0) return null;
+
+  // Recipe lines for this order, with current remaining stock (read after the lock,
+  // so it reflects any order committed by a transaction we waited on).
+  const result = await client.query(
+    `WITH stock AS (${STOCK_REMAINING_SQL}),
+     lines AS (
+       SELECT * FROM unnest($1::bigint[], $2::numeric[]) AS l(product_details_id, qty)
+     )
+     SELECT
+       l.product_details_id,
+       l.qty,
+       r.inventory_id,
+       r.quantity_used,
+       COALESCE(st.quantity_remaining, 0) AS quantity_remaining,
+       i.name AS inventory_name,
+       i.unit,
+       p.name AS product_name,
+       s.name AS size_name
+     FROM lines l
+     JOIN product_details_inventory r ON r.product_details_id = l.product_details_id AND r.quantity_used > 0
+     JOIN inventory i ON i.id = r.inventory_id
+     LEFT JOIN stock st ON st.inventory_id = r.inventory_id
+     LEFT JOIN product_details pd ON pd.id = l.product_details_id
+     LEFT JOIN products p ON p.id = pd.productid
+     LEFT JOIN size s ON s.id = pd.sizeid`,
+    [productIds, qtys]
+  );
+
+  // Needed vs remaining per ingredient, summed across all lines (shared cups, etc.)
+  const ingredients = new Map();
+  const products = new Map();
+  for (const row of result.rows) {
+    const pdId = Number(row.product_details_id);
+    const used = Number(row.quantity_used);
+    const remaining = Number(row.quantity_remaining);
+
+    const ing = ingredients.get(row.inventory_id) || {
+      name: row.inventory_name, unit: row.unit, remaining, needed: 0, productIds: []
+    };
+    ing.needed += Number(row.qty) * used;
+    ing.productIds.push(pdId);
+    ingredients.set(row.inventory_id, ing);
+
+    // Servings of this size the current stock could make on its own
+    const servings = Math.max(0, Math.floor(remaining / used));
+    const prod = products.get(pdId) || {
+      label: [row.product_name, row.size_name].filter(Boolean).join(' ') || `Product size #${pdId}`,
+      requested: Number(row.qty),
+      available: servings
+    };
+    prod.available = Math.min(prod.available, servings);
+    products.set(pdId, prod);
+  }
+
+  // Small epsilon guards against float error with fractional recipe quantities
+  const short = [...ingredients.values()].filter(ing => ing.needed > ing.remaining + 1e-9);
+  if (short.length === 0) return null;
+
+  const affectedIds = [...new Set(short.flatMap(ing => ing.productIds))];
+  const items = affectedIds.map(id => ({
+    product_details_id: id,
+    requested: products.get(id).requested,
+    available: products.get(id).available
+  }));
+
+  // Prefer naming a single product that alone exceeds stock; otherwise explain the shared ingredient.
+  const overOnItsOwn = items.find(it => it.requested > it.available);
+  let message;
+  if (overOnItsOwn) {
+    const p = products.get(overOnItsOwn.product_details_id);
+    message = `Not enough stock: ${p.label} has only ${p.available} left.`;
+  } else {
+    const ing = short[0];
+    const labels = [...new Set(ing.productIds)].map(id => products.get(id).label);
+    const unit = ing.unit ? ` ${ing.unit}` : '';
+    message = `Not enough stock: ${labels.join(' and ')} together need ${ing.needed}${unit} of ${ing.name}, ` +
+      `but only ${Math.max(0, ing.remaining)}${unit} left.`;
+  }
+
+  return { message, items };
+}
 
 /**
  * @swagger
@@ -299,6 +412,8 @@ router.get('/:id', async (req, res) => {
  *         description: Order created successfully
  *       400:
  *         description: order_details must be a non-empty array
+ *       409:
+ *         description: Not enough stock for one or more items; order not created. Body is { message, items[] }
  *       500:
  *         description: Failed to create order
  */
@@ -313,6 +428,12 @@ router.post('/', async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    const shortage = await checkStock(client, order_details);
+    if (shortage) {
+      await client.query('ROLLBACK');
+      return res.status(409).json(shortage);
+    }
 
     const orderResult = await client.query(
       `INSERT INTO orders (name, order_date, payment_type_id, status_id, remarks, discount_id, discount)

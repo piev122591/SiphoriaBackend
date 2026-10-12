@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { STOCK_REMAINING_SQL } = require('../lib/stock');
 
 
   /**
@@ -14,7 +15,18 @@ router.get('/', async (req, res) => {
   try {
     const pool = req.app.locals.pool;
 
-    const result = await pool.query(`SELECT pd.id,
+    // available_servings: MIN over recipe lines of FLOOR(quantity_remaining / quantity_used).
+    // NULL when the size has no (valid) recipe lines -> frontend treats as unlimited.
+    const result = await pool.query(`WITH stock AS (${STOCK_REMAINING_SQL}),
+          servings AS (
+            SELECT r.product_details_id,
+                   MIN(FLOOR(GREATEST(COALESCE(st.quantity_remaining, 0), 0) / r.quantity_used))::int AS available_servings
+            FROM product_details_inventory r
+            LEFT JOIN stock st ON st.inventory_id = r.inventory_id
+            WHERE r.quantity_used > 0
+            GROUP BY r.product_details_id
+          )
+          SELECT pd.id,
           p.id As "productId",
           p.name,
           p.categoryid,
@@ -23,11 +35,13 @@ router.get('/', async (req, res) => {
           pd.price,
           pd.fc,
           a.name AS "categoryName",
-          s.name as "size"
+          s.name as "size",
+          sv.available_servings
           FROM products p
           JOIN product_details pd ON pd.productid = p.id
           JOIN category a ON p.categoryid = a.id
           JOIN size s ON pd.sizeid = s.id
+          LEFT JOIN servings sv ON sv.product_details_id = pd.id
           `);
 
     res.json(result.rows);
