@@ -1,0 +1,9 @@
+❌ Initial DB Connection Error: Error: connect ECONNREFUSED ::1:5432
+    at C:\Siphoria\SiphoriaBackend\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+  errno: -4078,
+  code: 'ECONNREFUSED',
+  syscall: 'connect',
+  address: '::1',
+  port: 5432
+}
