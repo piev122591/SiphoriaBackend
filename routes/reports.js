@@ -7,7 +7,7 @@ const router = express.Router();
  *   get:
  *     tags:
  *       - Reports
- *     summary: Get daily sales report (total serving, gross sales, food cost, discount, VAT, gross profit) for a date range. Senior Citizen / PWD Privileges discounts are VAT-exempt (amount in orders is already net of VAT), so VAT is not computed for those orders.
+ *     summary: Get daily sales report (total serving, gross sales, food cost, discount, VAT, gross profit) for a date range. Prices are VAT-inclusive, so VAT = amount charged × 12/112. Senior Citizen / PWD Privileges lines are VAT-exempt: VAT is 0 and the removed VAT portion is reported as vat_exempt. gross_profit = gross_sales - discount - vat - vat_exempt - food_cost.
  *     parameters:
  *       - in: query
  *         name: start_date
@@ -46,7 +46,8 @@ router.get('/daily-sales', async (req, res) => {
          SUM(food_cost) AS food_cost,
          SUM(discount_amount) AS discount_amount,
          SUM(vat) AS vat,
-         SUM(gross_sales) - SUM(food_cost) - SUM(discount_amount) - SUM(vat) AS gross_profit
+         SUM(vat_exempt) AS vat_exempt,
+         SUM(gross_sales) - SUM(food_cost) - SUM(discount_amount) - SUM(vat) - SUM(vat_exempt) AS gross_profit
        FROM (
          SELECT
            o.order_date::date AS report_date,
@@ -66,10 +67,17 @@ router.get('/daily-sales', async (req, res) => {
              WHEN COALESCE(od.discount, 0) <> 0 THEN od.price::numeric * od.qty * (od.discount::numeric / 100) / (1 - od.discount::numeric / 100)
              ELSE 0
            END AS discount_amount,
+           -- Menu prices are VAT-inclusive, so the VAT inside what was charged is 12/112 of it.
+           -- Senior Citizen / PWD lines are VAT-exempt: no VAT, but the 12/112 VAT portion of the
+           -- menu price is removed (vat_exempt = gross * 12/112 = charged * 0.15) and must come off gross profit.
            CASE
              WHEN od.discount_id IN (2, 3) THEN 0
-             ELSE od.price::numeric * od.qty * 0.12
-           END AS vat
+             ELSE od.price::numeric * od.qty * 12 / 112
+           END AS vat,
+           CASE
+             WHEN od.discount_id IN (2, 3) THEN od.price::numeric * od.qty * 0.15
+             ELSE 0
+           END AS vat_exempt
          FROM orders o
          JOIN order_details od ON od.orderid = o.id
          WHERE o.order_date::date BETWEEN $1 AND $2
@@ -139,8 +147,9 @@ router.get('/daily-sales-by-station', async (req, res) => {
          ROUND(SUM(gross_sales)::numeric, 2) AS gross_sales,
          ROUND(SUM(food_cost)::numeric, 2) AS food_cost,
          ROUND(SUM(vat)::numeric, 2) AS vat,
+         ROUND(SUM(vat_exempt)::numeric, 2) AS vat_exempt,
          ROUND(SUM(discount_amount)::numeric, 2) AS discount,
-         ROUND(SUM(gross_sales) - SUM(food_cost) - SUM(discount_amount) - SUM(vat), 2) AS gross_profit
+         ROUND(SUM(gross_sales) - SUM(food_cost) - SUM(discount_amount) - SUM(vat) - SUM(vat_exempt), 2) AS gross_profit
        FROM (
          SELECT
            o.order_date::date AS report_date,
@@ -164,10 +173,17 @@ router.get('/daily-sales-by-station', async (req, res) => {
              WHEN COALESCE(od.discount, 0) <> 0 THEN od.price::numeric * od.qty * (od.discount::numeric / 100) / (1 - od.discount::numeric / 100)
              ELSE 0
            END AS discount_amount,
+           -- Menu prices are VAT-inclusive, so the VAT inside what was charged is 12/112 of it.
+           -- Senior Citizen / PWD lines are VAT-exempt: no VAT, but the 12/112 VAT portion of the
+           -- menu price is removed (vat_exempt = gross * 12/112 = charged * 0.15) and must come off gross profit.
            CASE
              WHEN od.discount_id IN (2, 3) THEN 0
-             ELSE od.price::numeric * od.qty * 0.12
-           END AS vat
+             ELSE od.price::numeric * od.qty * 12 / 112
+           END AS vat,
+           CASE
+             WHEN od.discount_id IN (2, 3) THEN od.price::numeric * od.qty * 0.15
+             ELSE 0
+           END AS vat_exempt
          FROM orders o
          JOIN order_details od ON od.orderid = o.id
          LEFT JOIN product_details pd ON pd.id = od.product_details_id
