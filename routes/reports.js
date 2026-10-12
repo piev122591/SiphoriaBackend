@@ -54,20 +54,20 @@ router.get('/daily-sales', async (req, res) => {
            od.fc::numeric * od.qty AS food_cost,
            -- od.price is the price actually charged (already net of any discount /
            -- VAT-exempt adjustment). Gross sales, discount, and VAT are derived by
-           -- inverting that transformation using discount_id/discount, since it's
+           -- inverting that transformation using the line's own discount_id/discount, since it's
            -- exactly reversible.
            CASE
-             WHEN o.discount_id IN (2, 3) THEN od.price::numeric * od.qty * 1.4
-             WHEN COALESCE(o.discount, 0) <> 0 THEN od.price::numeric * od.qty / (1 - o.discount::numeric / 100)
+             WHEN od.discount_id IN (2, 3) THEN od.price::numeric * od.qty * 1.4
+             WHEN COALESCE(od.discount, 0) <> 0 THEN od.price::numeric * od.qty / (1 - od.discount::numeric / 100)
              ELSE od.price::numeric * od.qty
            END AS gross_sales,
            CASE
-             WHEN o.discount_id IN (2, 3) THEN od.price::numeric * od.qty * 0.25
-             WHEN COALESCE(o.discount, 0) <> 0 THEN od.price::numeric * od.qty * (o.discount::numeric / 100) / (1 - o.discount::numeric / 100)
+             WHEN od.discount_id IN (2, 3) THEN od.price::numeric * od.qty * 0.25
+             WHEN COALESCE(od.discount, 0) <> 0 THEN od.price::numeric * od.qty * (od.discount::numeric / 100) / (1 - od.discount::numeric / 100)
              ELSE 0
            END AS discount_amount,
            CASE
-             WHEN o.discount_id IN (2, 3) THEN 0
+             WHEN od.discount_id IN (2, 3) THEN 0
              ELSE od.price::numeric * od.qty * 0.12
            END AS vat
          FROM orders o
@@ -94,7 +94,7 @@ router.get('/daily-sales', async (req, res) => {
  *   get:
  *     tags:
  *       - Reports
- *     summary: Get daily sales report for one station (Counter/Drinks or Kitchen), same shape and rules as /reports/daily-sales but filtered at the line-item level by the product's resolved station. A product's own `station` wins; otherwise it falls back to its category (Signature Coffee, Classic Coffee, Milk Based, Matcha Series, Garden Refresher are drinks, everything else is kitchen). Each order's discount is split across its lines in proportion to line subtotal.
+ *     summary: Get daily sales report for one station (Counter/Drinks or Kitchen), same shape and rules as /reports/daily-sales but filtered at the line-item level by the product's resolved station. A product's own `station` wins; otherwise it falls back to its category (Signature Coffee, Classic Coffee, Milk Based, Matcha Series, Garden Refresher are drinks, everything else is kitchen). Discounts are per line (order_details.discount_id/discount).
  *     parameters:
  *       - in: query
  *         name: start_date
@@ -151,21 +151,21 @@ router.get('/daily-sales-by-station', async (req, res) => {
            COALESCE(od.fc::numeric, 0) * od.qty AS food_cost,
            -- od.price is the price actually charged (already net of any discount /
            -- VAT-exempt adjustment). Gross sales, discount, and VAT are derived by
-           -- inverting that transformation using discount_id/discount, since it's
-           -- exactly reversible. The order-level discount rate applies uniformly to
-           -- every line, so each line already carries its proportional share.
+           -- inverting that transformation using the line's own discount_id/discount, since it's
+           -- exactly reversible. Discounts are stored per line (order_details), so each
+           -- line carries exactly its own discount.
            CASE
-             WHEN o.discount_id IN (2, 3) THEN od.price::numeric * od.qty * 1.4
-             WHEN COALESCE(o.discount, 0) <> 0 THEN od.price::numeric * od.qty / (1 - o.discount::numeric / 100)
+             WHEN od.discount_id IN (2, 3) THEN od.price::numeric * od.qty * 1.4
+             WHEN COALESCE(od.discount, 0) <> 0 THEN od.price::numeric * od.qty / (1 - od.discount::numeric / 100)
              ELSE od.price::numeric * od.qty
            END AS gross_sales,
            CASE
-             WHEN o.discount_id IN (2, 3) THEN od.price::numeric * od.qty * 0.25
-             WHEN COALESCE(o.discount, 0) <> 0 THEN od.price::numeric * od.qty * (o.discount::numeric / 100) / (1 - o.discount::numeric / 100)
+             WHEN od.discount_id IN (2, 3) THEN od.price::numeric * od.qty * 0.25
+             WHEN COALESCE(od.discount, 0) <> 0 THEN od.price::numeric * od.qty * (od.discount::numeric / 100) / (1 - od.discount::numeric / 100)
              ELSE 0
            END AS discount_amount,
            CASE
-             WHEN o.discount_id IN (2, 3) THEN 0
+             WHEN od.discount_id IN (2, 3) THEN 0
              ELSE od.price::numeric * od.qty * 0.12
            END AS vat
          FROM orders o

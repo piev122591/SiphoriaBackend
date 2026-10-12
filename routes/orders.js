@@ -211,7 +211,9 @@ router.get('/by-date', async (req, res) => {
              'product_details_id', od.product_details_id,
              'qty',                od.qty,
              'price',              od.price,
-             'fc',                 od.fc
+             'fc',                 od.fc,
+             'discount_id',        od.discount_id,
+             'discount',           od.discount
            )
          ) AS order_details
        FROM orders o
@@ -263,6 +265,8 @@ router.get('/order-details/:id', async (req, res) => {
          od.qty,
          od.price,
          od.fc,
+         od.discount_id,
+         od.discount,
          pd.sizeid,
          s.name AS size_name,
          p.name AS product_name
@@ -328,7 +332,9 @@ router.get('/:id', async (req, res) => {
              'product_details_id', od.product_details_id,
              'qty',               od.qty,
              'price',             od.price,
-             'fc',                od.fc
+             'fc',                od.fc,
+             'discount_id',       od.discount_id,
+             'discount',          od.discount
            )
          ) AS order_details
        FROM orders o
@@ -407,6 +413,14 @@ router.get('/:id', async (req, res) => {
  *                     fc:
  *                       type: number
  *                       example: 35.50
+ *                     discount_id:
+ *                       type: integer
+ *                       description: Discount for this line only (FK to discount.id). Lines without discount_id/discount fall back to the order-level discount_id/discount.
+ *                       example: 2
+ *                     discount:
+ *                       type: number
+ *                       description: Discount percentage for this line (e.g. 20.00 = 20%)
+ *                       example: 20.00
  *     responses:
  *       201:
  *         description: Order created successfully
@@ -443,13 +457,19 @@ router.post('/', async (req, res) => {
     );
     const order = orderResult.rows[0];
 
+    // Discounts are stored per line. A line without its own discount fields falls back
+    // to the order-level discount (older clients send only that, applied to every line).
+    const lineHasOwnDiscount = order_details.some(d => 'discount_id' in d || 'discount' in d);
+
     const insertedDetails = [];
     for (const detail of order_details) {
+      const lineDiscountId = lineHasOwnDiscount ? (detail.discount_id ?? null) : (discount_id ?? null);
+      const lineDiscount = lineHasOwnDiscount ? (detail.discount ?? null) : (discount ?? null);
       const detailResult = await client.query(
-        `INSERT INTO order_details (orderid, product_details_id, qty, price, fc)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO order_details (orderid, product_details_id, qty, price, fc, discount_id, discount)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING *`,
-        [order.id, detail.product_details_id, detail.qty, detail.price, detail.fc ?? null]
+        [order.id, detail.product_details_id, detail.qty, detail.price, detail.fc ?? null, lineDiscountId, lineDiscount]
       );
       insertedDetails.push(detailResult.rows[0]);
     }
